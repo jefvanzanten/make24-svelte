@@ -50,6 +50,7 @@
       visibility: hidden;
       width: var(--button-width);
       height: var(--button-height);
+      pointer-events: none;
     }
   }
 
