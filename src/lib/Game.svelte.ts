@@ -1,40 +1,65 @@
-import { GameState, type Operator } from "./types";
+﻿import { GameState, type Operator, type Tile } from "./types";
 import { applyOperator, generateTiles } from "./game-logic";
+
+interface GameSnapshot {
+  tiles: Tile[];
+  selectedTileId: number | null;
+  selectedOperator: Operator | null;
+  isGameOver: boolean;
+}
 
 export function createGame() {
   let tiles = $state(generateTiles());
-  let remainingTiles = $derived(tiles);
   let selectedTileId = $state<number | null>(null);
   let selectedOperator = $state<Operator | null>(null);
   let currentState = $state<GameState>(GameState.BeforePlaying);
-  let isGameOver = false;
+  let isGameOver = $state(false);
+  let undoHistory = $state<GameSnapshot[]>([]);
+  let redoHistory = $state<GameSnapshot[]>([]);
+
+  function cloneTiles(sourceTiles: Tile[]) {
+    return sourceTiles.map((tile) => ({ ...tile }));
+  }
+
+  function snapshot(): GameSnapshot {
+    return {
+      tiles: cloneTiles(tiles),
+      selectedTileId,
+      selectedOperator,
+      isGameOver,
+    };
+  }
+
+  function restore(state: GameSnapshot) {
+    tiles = cloneTiles(state.tiles);
+    selectedTileId = state.selectedTileId;
+    selectedOperator = state.selectedOperator;
+    isGameOver = state.isGameOver;
+  }
 
   function selectTile(tileId: number) {
     if (isGameOver) return;
 
-    // If it is the first action (operators are disabled in this phase)
     if (selectedTileId !== tileId && selectedOperator === null) {
       selectedTileId = tileId;
-    }
-    // If the numbertile gets selected again, deselect it
-    else if (selectedTileId === tileId && selectedOperator === null) {
-      console.log("deselect numbertile");
+    } else if (selectedTileId === tileId && selectedOperator === null) {
       selectedTileId = null;
-    }
+    } else if (selectedTileId !== null && selectedOperator !== null) {
+      if (selectedTileId === tileId) return;
 
-    // Do the calculation and merge
-    else if (selectedTileId !== null && selectedOperator !== null) {
+      undoHistory = [...undoHistory, snapshot()];
+      redoHistory = [];
+
       const firstTile = tiles.find((t) => t.id === selectedTileId)!;
       const secondTile = tiles.find((t) => t.id === tileId)!;
       const result = applyOperator(
         firstTile.value,
-        selectedOperator!,
+        selectedOperator,
         secondTile.value,
       );
 
       firstTile.isDisabled = true;
 
-      // Filter remaining tiles
       tiles = tiles
         .map((t) => (t.id === tileId ? { ...t, value: result } : t))
         .filter((t) => t.id !== selectedTileId);
@@ -56,10 +81,31 @@ export function createGame() {
     }
   }
 
+  function undoMove() {
+    if (undoHistory.length === 0) return;
+
+    const previousState = undoHistory[undoHistory.length - 1];
+    undoHistory = undoHistory.slice(0, -1);
+    redoHistory = [...redoHistory, snapshot()];
+    restore(previousState);
+  }
+
+  function redoMove() {
+    if (redoHistory.length === 0) return;
+
+    const nextState = redoHistory[redoHistory.length - 1];
+    redoHistory = redoHistory.slice(0, -1);
+    undoHistory = [...undoHistory, snapshot()];
+    restore(nextState);
+  }
+
   function newGame() {
     tiles = generateTiles();
     selectedTileId = null;
     selectedOperator = null;
+    isGameOver = false;
+    undoHistory = [];
+    redoHistory = [];
   }
 
   function startGame() {
@@ -82,8 +128,16 @@ export function createGame() {
     get currentState() {
       return currentState;
     },
+    get canUndo() {
+      return undoHistory.length > 0;
+    },
+    get canRedo() {
+      return redoHistory.length > 0;
+    },
     selectTile,
     selectOperator,
+    undoMove,
+    redoMove,
     newGame,
     startGame,
   };

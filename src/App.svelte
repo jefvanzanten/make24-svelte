@@ -1,4 +1,4 @@
-<script lang="ts">
+﻿<script lang="ts">
   import { OPERATORS } from "./lib/game-logic";
   import { createGame } from "./lib/Game.svelte";
   import Header from "./lib/components/Header.svelte";
@@ -11,8 +11,14 @@
   const game = createGame();
 </script>
 
-<Header resetSequence={() => game.newGame()} undoMove={() => {}} />
-  <main class="container">
+<Header
+  resetSequence={() => game.newGame()}
+  undoMove={() => game.undoMove()}
+  redoMove={() => game.redoMove()}
+  canUndo={game.canUndo}
+  canRedo={game.canRedo}
+/>
+<main class="container">
   {#if game.currentState === GameState.Playing}
     <div class="number-container">
       {#each game.tiles as tile (tile.id)}
