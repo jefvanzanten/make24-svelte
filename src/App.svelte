@@ -25,7 +25,7 @@
         <NumberTile
           value={tile.value}
           selected={tile.id === game.selectedTileId}
-          disabled={game.isGameOver || tile.isDisabled}
+          disabled={game.gameEnded || tile.isDisabled}
           onclick={() => game.selectTile(tile.id)}
         />
       {/each}
@@ -44,7 +44,11 @@
   {/if}
 
   <BeforePlayingModal gameState={game.currentState} onPlay={game.startGame} />
-  <ScoreModal hasWon={game.isGameOver} gameEnded={game.isGameOver} />
+  <ScoreModal
+    hasWon={game.hasWon}
+    gameEnded={game.gameEnded}
+    onRestart={() => game.newGame()}
+  />
 </main>
 
 <style>

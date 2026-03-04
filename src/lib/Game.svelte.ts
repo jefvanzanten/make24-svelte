@@ -5,7 +5,8 @@ interface GameSnapshot {
   tiles: Tile[];
   selectedTileId: number | null;
   selectedOperator: Operator | null;
-  isGameOver: boolean;
+  gameEnded: boolean;
+  hasWon: boolean;
 }
 
 export function createGame() {
@@ -13,7 +14,8 @@ export function createGame() {
   let selectedTileId = $state<number | null>(null);
   let selectedOperator = $state<Operator | null>(null);
   let currentState = $state<GameState>(GameState.BeforePlaying);
-  let isGameOver = $state(false);
+  let gameEnded = $state(false);
+  let hasWon = $state(false);
   let undoHistory = $state<GameSnapshot[]>([]);
   let redoHistory = $state<GameSnapshot[]>([]);
 
@@ -26,7 +28,8 @@ export function createGame() {
       tiles: cloneTiles(tiles),
       selectedTileId,
       selectedOperator,
-      isGameOver,
+      gameEnded,
+      hasWon,
     };
   }
 
@@ -34,51 +37,62 @@ export function createGame() {
     tiles = cloneTiles(state.tiles);
     selectedTileId = state.selectedTileId;
     selectedOperator = state.selectedOperator;
-    isGameOver = state.isGameOver;
+    gameEnded = state.gameEnded;
+    hasWon = state.hasWon;
   }
 
   function selectTile(tileId: number) {
-    if (isGameOver) return;
+    if (gameEnded) return;
 
-    if (selectedTileId !== tileId && selectedOperator === null) {
-      selectedTileId = tileId;
-    } else if (selectedTileId === tileId && selectedOperator === null) {
-      selectedTileId = null;
-    } else if (selectedTileId !== null && selectedOperator !== null) {
-      if (selectedTileId === tileId) return;
-
-      undoHistory = [...undoHistory, snapshot()];
-      redoHistory = [];
-
-      const firstTile = tiles.find((t) => t.id === selectedTileId)!;
-      const secondTile = tiles.find((t) => t.id === tileId)!;
-      const result = applyOperator(
-        firstTile.value,
-        selectedOperator,
-        secondTile.value,
-      );
-
-      firstTile.isDisabled = true;
-
-      tiles = tiles
-        .map((t) => (t.id === tileId ? { ...t, value: result } : t))
-        .filter((t) => t.id !== selectedTileId);
-
+    // Always allow deselecting the currently selected tile, even when
+    // an operator is selected (e.g. right after undo).
+    if (selectedTileId === tileId) {
       selectedTileId = null;
       selectedOperator = null;
+      return;
+    }
 
-      if (tiles.length === 1) {
-        isGameOver = Math.abs(tiles[0].value - 24) < 1e-9;
-      }
+    if (selectedTileId === null) {
+      selectedTileId = tileId;
+      return;
+    }
+
+    if (selectedOperator === null) {
+      selectedTileId = tileId;
+      return;
+    }
+
+    undoHistory = [...undoHistory, snapshot()];
+    redoHistory = [];
+
+    const firstTile = tiles.find((t) => t.id === selectedTileId)!;
+    const secondTile = tiles.find((t) => t.id === tileId)!;
+    const result = applyOperator(firstTile.value, selectedOperator, secondTile.value);
+
+    firstTile.isDisabled = true;
+
+    tiles = tiles
+      .map((t) => (t.id === tileId ? { ...t, value: result } : t))
+      .filter((t) => t.id !== selectedTileId);
+
+    selectedTileId = null;
+    selectedOperator = null;
+
+    if (tiles.length === 1) {
+      gameEnded = true;
+      hasWon = Math.abs(tiles[0].value - 24) < 1e-9;
     }
   }
 
   function selectOperator(op: Operator) {
-    if (selectedTileId !== null) {
-      selectedOperator = op;
-    } else if (selectedOperator === op) {
+    if (selectedTileId === null) return;
+
+    if (selectedOperator === op) {
       selectedOperator = null;
+      return;
     }
+
+    selectedOperator = op;
   }
 
   function undoMove() {
@@ -103,7 +117,8 @@ export function createGame() {
     tiles = generateTiles();
     selectedTileId = null;
     selectedOperator = null;
-    isGameOver = false;
+    gameEnded = false;
+    hasWon = false;
     undoHistory = [];
     redoHistory = [];
   }
@@ -122,8 +137,11 @@ export function createGame() {
     get selectedOperator() {
       return selectedOperator;
     },
-    get isGameOver() {
-      return isGameOver;
+    get gameEnded() {
+      return gameEnded;
+    },
+    get hasWon() {
+      return hasWon;
     },
     get currentState() {
       return currentState;
